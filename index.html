@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一个图形三种叫法</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f3f4f1; color: #24292b; line-height: 1.6; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 26px; letter-spacing: 1px; }
+  .lead { color: #5d6664; font-size: 14px; margin: 4px 0 16px; }
+  .top { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .top { grid-template-columns: minmax(0, 1fr); } }
+  .card { background: #fff; border-radius: 10px; padding: 14px; border: 1px solid #dfe3df; min-width: 0; }
+  .card h2 { font-size: 15px; color: #5d6664; font-weight: 600; margin-bottom: 8px; }
+  svg#board { width: 100%; height: auto; display: block; background: #fbfcfa; border-radius: 8px; touch-action: none; cursor: crosshair; }
+  .hint { font-size: 12px; color: #7b8482; margin-top: 6px; }
+  .pts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .pt { border: 1px solid #dfe3df; border-radius: 8px; padding: 6px; cursor: pointer; }
+  .pt.on { border-color: #2d6a73; background: #eef5f5; }
+  .pt b { font-size: 14px; }
+  .pt input { width: 100%; padding: 4px 4px; border: 1px solid #ccd3cf; border-radius: 5px; font-size: 15px; margin-top: 3px; background: #fdfefd; }
+  .pt input.bad { border-color: #b3402e; background: #fff4f1; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  button { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 6px; border: 1px solid #2d6a73; background: #2d6a73; color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: #2d6a73; }
+  #summary { font-size: 17px; font-weight: 600; margin-bottom: 10px; overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 6px 4px; border-top: 1px solid #e6eae6; text-align: center; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { font-size: 13px; color: #5d6664; font-weight: 600; border-top: none; }
+  thead th small { display: block; font-weight: 400; font-size: 11px; color: #8b9391; line-height: 1.3; }
+  tr.diff td { background: #fff7e6; }
+  tr.diff td:first-child::after { content: "有分歧"; display: block; color: #a9690f; font-size: 11px; line-height: 1.2; }
+  td.yes { color: #2f6b4f; font-weight: 600; } td.no { color: #b6bcba; }
+  tr.best td { border-top: 2px solid #2d6a73; font-weight: 700; color: #2d6a73; }
+  .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+  @media (max-width: 560px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+  .col { background: #f6f8f6; border-radius: 8px; padding: 8px 10px; font-size: 12px; color: #4f5856; }
+  .col b { display: block; font-size: 13px; color: #24292b; }
+  .bottom { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  @media (max-width: 800px) { .bottom { grid-template-columns: minmax(0, 1fr); } }
+  #evidence td { text-align: left; } #evidence td:last-child { text-align: right; overflow-wrap: anywhere; }
+  .focus { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .focus label { border: 1px solid #ccd3cf; border-radius: 6px; padding: 4px 8px; font-size: 13px; cursor: pointer; }
+  .focus label.on { border-color: #2d6a73; background: #eef5f5; }
+  .focus input { margin-right: 3px; }
+  #moves { list-style: none; font-size: 14px; }
+  #moves li { padding: 6px 0; border-top: 1px solid #e6eae6; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  #moves li span { overflow-wrap: anywhere; min-width: 0; }
+  #moves li button { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; }
+  #moves li.none span { color: #8b9391; }
+  #error { display: none; background: #fff1ee; color: #8f2a1d; border: 1px solid #f0c7bd; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; overflow-wrap: anywhere; }
+  .exports { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  footer { margin-top: 22px; font-size: 12px; color: #7b8482; }
+  footer p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>一个图形三种叫法</h1>
+  <p class="lead">在格子上摆四个点，看这个四边形按三种常见的梯形定义各该叫什么，分歧落在哪一行，挪哪个点能变成别的形状。</p>
+  <div id="error" role="alert"></div>
+  <div class="top">
+    <section class="card">
+      <h2>摆四个点（点格子放下当前选中的点）</h2>
+      <svg id="board" viewBox="0 0 420 420" role="img" aria-label="坐标格与四边形"></svg>
+      <div class="pts" id="pts"></div>
+      <p class="hint">坐标是 -10 到 10 的整数，A→B→C→D 按绕一圈的顺序连。</p>
+      <div class="presets" id="presets"></div>
+      <p class="hint">例子都是随手摆的格点图形，不来自任何教材习题。</p>
+    </section>
+    <section class="card">
+      <p id="summary"></p>
+      <table id="names">
+        <thead><tr><th>名字</th><th>排他口径</th><th>折中口径</th><th>全包含口径</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="cols" id="rules"></div>
+    </section>
+  </div>
+  <div class="bottom">
+    <section class="card">
+      <h2>依据（整数坐标精确算，不靠目测）</h2>
+      <table id="evidence"><tbody></tbody></table>
+    </section>
+    <section class="card">
+      <h2>挪一个点，能变成什么</h2>
+      <div class="focus" id="focusSeg"></div>
+      <ul id="moves"></ul>
+      <p class="hint">「最近」指挪动的直线距离最短；一样近时先挪 A，再按坐标小的来。</p>
+    </section>
+  </div>
+  <div class="exports">
+    <button id="dlPNG">结果卡 PNG</button>
+    <button class="ghost" id="dlCSV">CSV</button>
+    <button class="ghost" id="dlMD">Markdown</button>
+    <button class="ghost" id="dlJSON">JSON 备份</button>
+  </div>
+  <footer>
+    <p>三种口径是本工具为了对照整理的定义组合，不是任何一版教材或课标的原文；你学校用哪一种，以老师和课本为准。</p>
+    <p>只处理不自交的简单四边形；重合点、三点共线、边交叉会提示原因，不硬给名字。角度保留一位小数仅供阅读，判定全部用整数叉积、点积和边长平方。</p>
+    <p>摆的点只存在你自己的浏览器里，不上传。</p>
+  </footer>
+</div>
+
+  <script>
+/* 一个图形三种叫法 · 计算核心（纯整数判定，无浮点比较）
+ * 输入：四个顶点 A B C D 的整数坐标（-10…10），按顺序连成四边形 ABCD。
+ * 输出：边/角/对角线性质 → 三种定义口径下各名字是否成立 → 每个口径的「最具体叫法」→ 挪一个点能变成什么。 */
+(function (root) {
+  'use strict';
+  const MIN = -10, MAX = 10;
+  const LABELS = ['A', 'B', 'C', 'D'];
+  const NAMES = ['四边形', '梯形', '直角梯形', '等腰梯形', '平行四边形', '长方形', '菱形', '正方形'];
+  const COLUMNS = [
+    { id: 'excl', label: '排他口径', rule: '梯形 = 只有一组对边平行；等腰梯形、直角梯形都先得是这种梯形' },
+    { id: 'semi', label: '折中口径', rule: '梯形 = 至少一组对边平行（平行四边形也算）；等腰梯形 = 两腰相等且不平行；直角梯形 = 有直角的梯形' },
+    { id: 'incl', label: '全包含口径', rule: '梯形 = 至少一组对边平行；等腰梯形 = 对角线相等的梯形（长方形也算）；直角梯形 = 有直角的梯形' }
+  ];
+  /* 每个口径下「X 一定也是 Y」的包含关系（用于挑最具体叫法；测试里用全网格穷举核对它确实成立） */
+  const COMMON = [['正方形', '长方形'], ['正方形', '菱形'], ['长方形', '平行四边形'], ['菱形', '平行四边形'],
+    ['正方形', '平行四边形'], ['梯形', '四边形'], ['平行四边形', '四边形'], ['长方形', '四边形'], ['菱形', '四边形'],
+    ['正方形', '四边形'], ['等腰梯形', '四边形'], ['直角梯形', '四边形'], ['等腰梯形', '梯形'], ['直角梯形', '梯形']];
+  const SUBSETS = {
+    excl: COMMON.slice(),
+    semi: COMMON.concat([['平行四边形', '梯形'], ['长方形', '梯形'], ['菱形', '梯形'], ['正方形', '梯形'],
+      ['长方形', '直角梯形'], ['正方形', '直角梯形']]),
+    incl: COMMON.concat([['平行四边形', '梯形'], ['长方形', '梯形'], ['菱形', '梯形'], ['正方形', '梯形'],
+      ['长方形', '直角梯形'], ['正方形', '直角梯形'], ['长方形', '等腰梯形'], ['正方形', '等腰梯形']])
+  };
+
+  function sub(p, q) { return [p[0] - q[0], p[1] - q[1]]; }
+  function cross(u, v) { return u[0] * v[1] - u[1] * v[0]; }
+  function dot(u, v) { return u[0] * v[0] + u[1] * v[1]; }
+  function sq(u) { return dot(u, u); }
+  function orient(a, b, c) { return Math.sign(cross(sub(b, a), sub(c, a))); }
+  function onSeg(a, b, p) {
+    return orient(a, b, p) === 0 && Math.min(a[0], b[0]) <= p[0] && p[0] <= Math.max(a[0], b[0]) &&
+      Math.min(a[1], b[1]) <= p[1] && p[1] <= Math.max(a[1], b[1]);
+  }
+  function segHit(a, b, c, d) {
+    const o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
+    if (o1 !== o2 && o3 !== o4 && o1 * o2 <= 0 && o3 * o4 <= 0 && o1 !== 0 && o2 !== 0 && o3 !== 0 && o4 !== 0) return true;
+    return onSeg(a, b, c) || onSeg(a, b, d) || onSeg(c, d, a) || onSeg(c, d, b);
+  }
+
+  /* 校验输入：返回 {pts} 或抛出带字段的错误 */
+  function readPoints(input) {
+    const pts = [];
+    for (let i = 0; i < 4; i++) {
+      const L = LABELS[i];
+      const xy = [];
+      for (const ax of ['x', 'y']) {
+        const key = L + ax;
+        const v = input[key];
+        if (v === '' || v === null || v === undefined || (typeof v === 'number' && isNaN(v))) throw fieldError(key, L + ' 点的 ' + ax + ' 没填');
+        const n = typeof v === 'number' ? v : Number(String(v).trim());
+        if (!Number.isFinite(n)) throw fieldError(key, L + ' 点的 ' + ax + ' 不是数字');
+        if (!Number.isInteger(n)) throw fieldError(key, L + ' 点的 ' + ax + ' 要填整数（格点坐标）');
+        if (n < MIN || n > MAX) throw fieldError(key, L + ' 点的 ' + ax + ' 要在 ' + MIN + ' 到 ' + MAX + ' 之间');
+        xy.push(n);
+      }
+      pts.push(xy);
+    }
+    return pts;
+  }
+  function fieldError(field, msg) { const e = new Error(msg); e.field = field; return e; }
+
+  /* 几何是否成立：重合点、三点共线、边交叉/相碰 */
+  function shapeProblem(pts) {
+    for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+      if (pts[i][0] === pts[j][0] && pts[i][1] === pts[j][1]) return { code: 'same', text: LABELS[i] + ' 和 ' + LABELS[j] + ' 是同一个点，围不成四边形' };
+    }
+    for (let i = 0; i < 4; i++) {
+      const p = pts[(i + 3) % 4], v = pts[i], n = pts[(i + 1) % 4];
+      if (orient(p, v, n) === 0) return { code: 'line', text: LABELS[(i + 3) % 4] + '、' + LABELS[i] + '、' + LABELS[(i + 1) % 4] + ' 三点在一条直线上，' + LABELS[i] + ' 处不是角，图形退化了' };
+    }
+    if (segHit(pts[0], pts[1], pts[2], pts[3])) return { code: 'cross', text: 'AB 和 CD 两条边交叉了：顶点要按绕一圈的顺序填，试试交换 C、D 或 B、C' };
+    if (segHit(pts[1], pts[2], pts[3], pts[0])) return { code: 'cross', text: 'BC 和 DA 两条边交叉了：顶点要按绕一圈的顺序填，试试交换 A、B 或 B、C' };
+    return null;
+  }
+
+  function sqrtText(n) {
+    let s = 1, r = n;
+    for (let k = Math.floor(Math.sqrt(n)); k >= 2; k--) { if (n % (k * k) === 0) { s = k; r = n / (k * k); break; } }
+    if (r === 1) return String(s);
+    return (s === 1 ? '' : s) + '√' + r;
+  }
+
+  /* 性质（全部整数比较） */
+  function properties(pts) {
+    const E = [0, 1, 2, 3].map((i) => sub(pts[(i + 1) % 4], pts[i]));
+    const sides = E.map(sq);
+    const pAB_CD = cross(E[0], E[2]) === 0;
+    const pBC_DA = cross(E[1], E[3]) === 0;
+    const parallelPairs = (pAB_CD ? 1 : 0) + (pBC_DA ? 1 : 0);
+    const right = [0, 1, 2, 3].map((i) => dot(E[(i + 3) % 4], E[i]) === 0);
+    const turns = [0, 1, 2, 3].map((i) => Math.sign(cross(E[(i + 3) % 4], E[i])));
+    const convex = turns.every((t) => t === turns[0]);
+    const area2 = Math.abs(pts.reduce((s, p, i) => s + cross(p, pts[(i + 1) % 4]), 0));
+    const orientSign = Math.sign(pts.reduce((s, p, i) => s + cross(p, pts[(i + 1) % 4]), 0));
+    const angles = [0, 1, 2, 3].map((i) => {
+      const a = E[(i + 3) % 4], b = E[i];
+      const turn = Math.atan2(cross(a, b) * orientSign, dot(a, b));
+      return Math.round((180 - turn * 180 / Math.PI) * 10) / 10;
+    });
+    const d1 = sq(sub(pts[2], pts[0])), d2 = sq(sub(pts[3], pts[1]));
+    /* 两腰：只有一组对边平行时，另一组就是腰 */
+    let legsEqual = null, legs = null;
+    if (parallelPairs === 1) {
+      legs = pAB_CD ? ['BC', 'DA'] : ['AB', 'CD'];
+      legsEqual = pAB_CD ? sides[1] === sides[3] : sides[0] === sides[2];
+    }
+    const allSidesEqual = sides.every((s) => s === sides[0]);
+    const midSame = pts[0][0] + pts[2][0] === pts[1][0] + pts[3][0] && pts[0][1] + pts[2][1] === pts[1][1] + pts[3][1];
+    return {
+      sides: sides, sideText: sides.map(sqrtText), pAB_CD: pAB_CD, pBC_DA: pBC_DA, parallelPairs: parallelPairs,
+      right: right, rightCount: right.filter(Boolean).length, convex: convex, area2: area2, angles: angles,
+      diag: [d1, d2], diagText: [sqrtText(d1), sqrtText(d2)], diagEqual: d1 === d2, diagBisect: midSame,
+      legs: legs, legsEqual: legsEqual, allSidesEqual: allSidesEqual
+    };
+  }
+
+  function judge(P, col) {
+    const k = P.parallelPairs;
+    const para = k === 2;
+    const rect = para && P.rightCount === 4;
+    const rhom = P.allSidesEqual;
+    const trap = col === 'excl' ? k === 1 : k >= 1;
+    let iso, rt;
+    if (col === 'excl') { iso = k === 1 && P.legsEqual; rt = k === 1 && P.rightCount > 0; }
+    else if (col === 'semi') { iso = k === 1 && P.legsEqual; rt = k >= 1 && P.rightCount > 0; }
+    else { iso = k >= 1 && P.diagEqual; rt = k >= 1 && P.rightCount > 0; }
+    return { '四边形': true, '梯形': trap, '直角梯形': !!rt, '等腰梯形': !!iso, '平行四边形': para, '长方形': rect, '菱形': rhom, '正方形': rect && rhom };
+  }
+  function bestNames(applies, col) {
+    const on = NAMES.filter((n) => applies[n]);
+    const S = SUBSETS[col];
+    /* Y 被剔除：存在另一个成立的 X 满足「X 一定也是 Y」 */
+    return on.filter((y) => !on.some((x) => x !== y && S.some((r) => r[0] === x && r[1] === y)));
+  }
+
+  function classify(P) {
+    return COLUMNS.map((c) => {
+      const applies = judge(P, c.id);
+      return { id: c.id, label: c.label, applies: applies, best: bestNames(applies, c.id) };
+    });
+  }
+
+  function evalPts(pts) {
+    const bad = shapeProblem(pts);
+    if (bad) return { ok: false, problem: bad };
+    const P = properties(pts);
+    return { ok: true, props: P, columns: classify(P) };
+  }
+
+  /* 挪一个点：在 focus 口径下变成 target 的最近整数挪法（平方距离最小；同距按 A→D、x、y 小者优先） */
+  function nearestMove(pts, focus, target) {
+    let best = null;
+    for (let i = 0; i < 4; i++) {
+      for (let x = MIN; x <= MAX; x++) for (let y = MIN; y <= MAX; y++) {
+        const dx = x - pts[i][0], dy = y - pts[i][1];
+        const d = dx * dx + dy * dy;
+        if (d === 0) continue;
+        if (best && d >= best.dist2) continue;
+        const np = pts.map((p, j) => (j === i ? [x, y] : p.slice()));
+        const r = evalPts(np);
+        if (!r.ok) continue;
+        const col = r.columns.find((c) => c.id === focus);
+        if (!col.applies[target]) continue;
+        best = { vertex: LABELS[i], index: i, to: [x, y], from: pts[i].slice(), dist2: d, best: col.best };
+      }
+    }
+    return best;
+  }
+
+  function suggestions(pts, columns, focus) {
+    const col = columns.find((c) => c.id === focus);
+    return NAMES.filter((n) => n !== '四边形' && !col.applies[n]).map((n) => {
+      const m = nearestMove(pts, focus, n);
+      return { target: n, move: m, text: m ? '把 ' + m.vertex + ' 从 (' + m.from.join(', ') + ') 挪到 (' + m.to.join(', ') + ')，就成了' + n + (m.best.indexOf(n) < 0 ? '（最具体叫法是' + m.best.join('、') + '）' : '')
+        : '只挪一个点、坐标不出 ' + MIN + '…' + MAX + ' 做不到' };
+    });
+  }
+
+  function joinNames(a) { return a.join('、'); }
+  function summary(r) {
+    const c = r.columns;
+    const same = c.every((x) => joinNames(x.best) === joinNames(c[0].best));
+    const diffs = r.diffRows;
+    if (same && diffs.length === 0) return '三种口径叫法一样：' + joinNames(c[0].best) + '。这个图形不受梯形定义之争影响。';
+    if (same) return '三种口径的最具体叫法都是' + joinNames(c[0].best) + '，但它算不算' + joinNames(diffs) + '，各口径说法不同。';
+    return c.map((x) => x.label + '叫' + joinNames(x.best)).join('；') + '。分歧在：算不算' + joinNames(diffs) + '。';
+  }
+
+  function calculate(input, opts) {
+    const focus = (opts && opts.focus) || 'semi';
+    if (!COLUMNS.some((c) => c.id === focus)) throw new Error('口径不存在：' + focus);
+    const pts = readPoints(input);
+    const r = evalPts(pts);
+    if (!r.ok) { const e = new Error(r.problem.text); e.code = r.problem.code; e.field = null; throw e; }
+    const diffRows = NAMES.filter((n) => !r.columns.every((c) => c.applies[n] === r.columns[0].applies[n]));
+    const out = { pts: pts, props: r.props, columns: r.columns, diffRows: diffRows, focus: focus };
+    out.summary = summary(out);
+    out.suggestions = suggestions(pts, r.columns, focus);
+    return out;
+  }
+
+  function evidence(r) {
+    const P = r.props;
+    const parallelText = P.parallelPairs === 0 ? '没有平行的对边' : (P.parallelPairs === 2 ? '两组对边都平行（AB∥CD，BC∥DA）' : '只有一组对边平行（' + (P.pAB_CD ? 'AB∥CD' : 'BC∥DA') + '）');
+    const rows = [
+      ['平行对边', parallelText],
+      ['四条边长 AB / BC / CD / DA', P.sideText.join(' / ')],
+      ['四个角 A / B / C / D', P.angles.map((a) => a + '°').join(' / ') + '（直角 ' + P.rightCount + ' 个）'],
+      ['对角线 AC / BD', P.diagText.join(' / ') + (P.diagEqual ? '，相等' : '，不相等') + (P.diagBisect ? '，互相平分' : '')],
+      ['凸还是凹', P.convex ? '凸四边形' : '凹四边形（有一个角大于 180°）'],
+      ['面积', (P.area2 % 2 === 0 ? String(P.area2 / 2) : (P.area2 / 2).toFixed(1)) + ' 格']
+    ];
+    if (P.legs) rows.splice(2, 0, ['两腰 ' + P.legs.join(' / '), P.legsEqual ? '相等' : '不相等']);
+    return rows;
+  }
+
+  function csvCell(s) { s = String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function toCSV(r, stamp) {
+    const L = [];
+    L.push(['项目', '一个图形三种叫法'].join(','));
+    L.push(['生成时间', stamp].map(csvCell).join(','));
+    L.push(['顶点', r.pts.map((p, i) => LABELS[i] + '(' + p.join(',') + ')').join(' ')].map(csvCell).join(','));
+    L.push(['结论', r.summary].map(csvCell).join(','));
+    L.push('');
+    L.push(['名字'].concat(r.columns.map((c) => c.label)).map(csvCell).join(','));
+    NAMES.forEach((n) => L.push([n].concat(r.columns.map((c) => (c.applies[n] ? '是' : '否'))).map(csvCell).join(',')));
+    L.push(['最具体叫法'].concat(r.columns.map((c) => c.best.join('、'))).map(csvCell).join(','));
+    L.push('');
+    evidence(r).forEach((x) => L.push(x.map(csvCell).join(',')));
+    L.push('');
+    L.push(['按' + r.columns.find((c) => c.id === r.focus).label + '挪一个点', ''].map(csvCell).join(','));
+    r.suggestions.forEach((s) => L.push([s.target, s.text].map(csvCell).join(',')));
+    return L.join('\n') + '\n';
+  }
+  function toMD(r, stamp) {
+    const L = ['# 一个图形三种叫法', '', '生成时间：' + stamp, '', '顶点：' + r.pts.map((p, i) => LABELS[i] + '(' + p.join(', ') + ')').join('　'), '',
+      '**结论**：' + r.summary, '', '| 名字 | ' + r.columns.map((c) => c.label).join(' | ') + ' |', '|---|' + r.columns.map(() => ':-:').join('|') + '|'];
+    NAMES.forEach((n) => L.push('| ' + n + (r.diffRows.indexOf(n) >= 0 ? '（有分歧）' : '') + ' | ' + r.columns.map((c) => (c.applies[n] ? '是' : '—')).join(' | ') + ' |'));
+    L.push('| **最具体叫法** | ' + r.columns.map((c) => c.best.join('、')).join(' | ') + ' |', '', '## 依据', '');
+    evidence(r).forEach((x) => L.push('- ' + x[0] + '：' + x[1]));
+    L.push('', '## 挪一个点（按' + r.columns.find((c) => c.id === r.focus).label + '）', '');
+    r.suggestions.forEach((s) => L.push('- 变' + s.target + '：' + s.text));
+    L.push('', '## 三种口径', '');
+    COLUMNS.forEach((c) => L.push('- ' + c.label + '：' + c.rule));
+    L.push('', '口径是本工具整理的三种定义组合，用来对照，不代表任何一版教材的原文。');
+    return L.join('\n') + '\n';
+  }
+
+  const API = { MIN: MIN, MAX: MAX, LABELS: LABELS, NAMES: NAMES, COLUMNS: COLUMNS, SUBSETS: SUBSETS,
+    readPoints: readPoints, shapeProblem: shapeProblem, properties: properties, judge: judge, bestNames: bestNames,
+    evalPts: evalPts, nearestMove: nearestMove, calculate: calculate, evidence: evidence, sqrtText: sqrtText, toCSV: toCSV, toMD: toMD };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  root.AppCore = API;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+  <script>
+/* 一个图形三种叫法 · 界面层 */
+(function () {
+  'use strict';
+  const C = window.AppCore;
+  const KEY = 'three-names:v1';
+  const L = C.LABELS;
+  const PRESETS = [
+    ['平行四边形', [-4, -2, 3, -2, 5, 2, -2, 2]],
+    ['长方形', [-4, -2, 4, -2, 4, 2, -4, 2]],
+    ['等腰梯形', [-5, -2, 5, -2, 2, 2, -2, 2]],
+    ['正方形', [-3, -3, 3, -3, 3, 3, -3, 3]],
+    ['菱形', [0, -3, 4, 0, 0, 3, -4, 0]],
+    ['风筝形', [0, -4, 3, 0, 0, 2, -3, 0]],
+    ['凹四边形', [-4, -3, 4, -3, 0, -1, 0, 3]]
+  ];
+  const $ = (id) => document.getElementById(id);
+  let state = { pts: PRESETS[0][1].slice(), sel: 0, focus: 'semi' };
+  let last = null;
+
+  /* ── 坐标格 ── */
+  const S = 420, PAD = 20, STEP = (S - 2 * PAD) / 20;
+  const px = (x) => PAD + (x + 10) * STEP;
+  const py = (y) => PAD + (10 - y) * STEP;
+
+  function buildPointInputs() {
+    const box = $('pts');
+    L.forEach((n, i) => {
+      const d = document.createElement('div');
+      d.className = 'pt'; d.dataset.i = i;
+      d.innerHTML = '<b>' + n + '</b><input id="' + n + 'x" inputmode="numeric" aria-label="' + n + ' 的 x"><input id="' + n + 'y" inputmode="numeric" aria-label="' + n + ' 的 y">';
+      d.addEventListener('click', () => { state.sel = i; syncSel(); drawBoard(); });
+      box.appendChild(d);
+    });
+    L.forEach((n) => ['x', 'y'].forEach((a) => $(n + a).addEventListener('input', () => { readInputs(); run(); })));
+  }
+  function syncSel() { document.querySelectorAll('.pt').forEach((d) => d.classList.toggle('on', Number(d.dataset.i) === state.sel)); }
+
+  function writeInputs() { L.forEach((n, i) => { $(n + 'x').value = state.pts[2 * i]; $(n + 'y').value = state.pts[2 * i + 1]; }); }
+  function readInputs() {
+    L.forEach((n, i) => {
+      ['x', 'y'].forEach((a, k) => {
+        const raw = $(n + a).value.trim();
+        state.pts[2 * i + k] = raw === '' ? '' : (isNaN(Number(raw)) ? raw : Number(raw));
+      });
+    });
+  }
+  function inputObj() {
+    const o = {};
+    L.forEach((n, i) => { o[n + 'x'] = state.pts[2 * i]; o[n + 'y'] = state.pts[2 * i + 1]; });
+    return o;
+  }
+
+  function drawBoard() {
+    const g = [];
+    for (let k = -10; k <= 10; k++) {
+      const axis = k === 0;
+      g.push('<line x1="' + px(k) + '" y1="' + PAD + '" x2="' + px(k) + '" y2="' + (S - PAD) + '" stroke="' + (axis ? '#9aa5a2' : '#e4e8e5') + '" stroke-width="' + (axis ? 1.4 : 1) + '"/>');
+      g.push('<line x1="' + PAD + '" y1="' + py(k) + '" x2="' + (S - PAD) + '" y2="' + py(k) + '" stroke="' + (axis ? '#9aa5a2' : '#e4e8e5') + '" stroke-width="' + (axis ? 1.4 : 1) + '"/>');
+    }
+    const okPts = [];
+    for (let i = 0; i < 4; i++) {
+      const x = state.pts[2 * i], y = state.pts[2 * i + 1];
+      okPts.push(Number.isInteger(x) && Number.isInteger(y) && Math.abs(x) <= 10 && Math.abs(y) <= 10 ? [x, y] : null);
+    }
+    if (okPts.every(Boolean)) {
+      const ok = !!last && last.pts.every((p, i) => p[0] === okPts[i][0] && p[1] === okPts[i][1]);
+      g.push('<polygon points="' + okPts.map((p) => px(p[0]) + ',' + py(p[1])).join(' ') + '" fill="' + (ok ? 'rgba(45,106,115,.14)' : 'rgba(179,64,46,.08)') + '" stroke="' + (ok ? '#2d6a73' : '#b3402e') + '" stroke-width="2.5" stroke-linejoin="round"' + (ok ? '' : ' stroke-dasharray="6 4"') + '/>');
+      if (ok && last) {
+        const P = last.props;
+        const mark = (i, j) => { const a = okPts[i], b = okPts[j]; const mx = (px(a[0]) + px(b[0])) / 2, my = (py(a[1]) + py(b[1])) / 2; return '<circle cx="' + mx + '" cy="' + my + '" r="4" fill="#a9690f"/>'; };
+        if (P.pAB_CD) { g.push(mark(0, 1)); g.push(mark(2, 3)); }
+        if (P.pBC_DA) { g.push(mark(1, 2)); g.push(mark(3, 0)); }
+        P.right.forEach((r, i) => {
+          if (!r) return;
+          const v = okPts[i], a = okPts[(i + 3) % 4], b = okPts[(i + 1) % 4];
+          const u = (p) => { const dx = p[0] - v[0], dy = p[1] - v[1]; const l = Math.hypot(dx, dy); return [dx / l * 10, -dy / l * 10]; };
+          const ua = u(a), ub = u(b); const X = px(v[0]), Y = py(v[1]);
+          g.push('<path d="M' + (X + ua[0]) + ' ' + (Y + ua[1]) + ' L' + (X + ua[0] + ub[0]) + ' ' + (Y + ua[1] + ub[1]) + ' L' + (X + ub[0]) + ' ' + (Y + ub[1]) + '" fill="none" stroke="#2f6b4f" stroke-width="1.6"/>');
+        });
+      }
+    }
+    okPts.forEach((p, i) => {
+      if (!p) return;
+      const on = i === state.sel;
+      const X = px(p[0]), Y = py(p[1]);
+      const tx = Math.min(S - 14, Math.max(14, X + (X > S - 40 ? -14 : 12)));
+      const ty = Math.min(S - 6, Math.max(16, Y + (Y < 30 ? 18 : -9)));
+      g.push('<circle cx="' + X + '" cy="' + Y + '" r="' + (on ? 8 : 6) + '" fill="' + (on ? '#2d6a73' : '#fff') + '" stroke="#2d6a73" stroke-width="2"/>');
+      g.push('<text x="' + tx + '" y="' + ty + '" font-size="15" font-weight="700" fill="#24292b">' + L[i] + '</text>');
+    });
+    $('board').innerHTML = g.join('');
+  }
+
+  function boardClick(ev) {
+    const svg = $('board');
+    const r = svg.getBoundingClientRect();
+    const sx = (ev.clientX - r.left) / r.width * S, sy = (ev.clientY - r.top) / r.height * S;
+    const x = Math.round((sx - PAD) / STEP) - 10, y = 10 - Math.round((sy - PAD) / STEP);
+    if (Math.abs(x) > 10 || Math.abs(y) > 10) return;
+    state.pts[2 * state.sel] = x; state.pts[2 * state.sel + 1] = y;
+    state.sel = (state.sel + 1) % 4;
+    writeInputs(); syncSel(); run();
+  }
+
+  /* ── 结果 ── */
+  function render(r) {
+    $('summary').textContent = r.summary;
+    const tb = $('names').querySelector('tbody');
+    tb.innerHTML = '';
+    C.NAMES.forEach((n) => {
+      const tr = document.createElement('tr');
+      if (r.diffRows.indexOf(n) >= 0) tr.className = 'diff';
+      tr.innerHTML = '<td>' + n + '</td>' + r.columns.map((c) => '<td class="' + (c.applies[n] ? 'yes">是' : 'no">—') + '</td>').join('');
+      tb.appendChild(tr);
+    });
+    const tr = document.createElement('tr'); tr.className = 'best';
+    tr.innerHTML = '<td>最具体叫法</td>' + r.columns.map((c) => '<td>' + c.best.join('、') + '</td>').join('');
+    tb.appendChild(tr);
+    const ev = $('evidence').querySelector('tbody');
+    ev.innerHTML = '';
+    C.evidence(r).forEach((row) => { const t = document.createElement('tr'); t.innerHTML = '<td></td><td></td>'; t.children[0].textContent = row[0]; t.children[1].textContent = row[1]; ev.appendChild(t); });
+    const ul = $('moves'); ul.innerHTML = '';
+    r.suggestions.forEach((s) => {
+      const li = document.createElement('li');
+      const sp = document.createElement('span'); sp.textContent = '变' + s.target + '：' + s.text; li.appendChild(sp);
+      if (s.move) {
+        const b = document.createElement('button'); b.className = 'ghost'; b.textContent = '照做'; b.dataset.target = s.target;
+        b.addEventListener('click', () => { state.pts[2 * s.move.index] = s.move.to[0]; state.pts[2 * s.move.index + 1] = s.move.to[1]; writeInputs(); run(); });
+        li.appendChild(b);
+      } else li.className = 'none';
+      ul.appendChild(li);
+    });
+    if (!r.suggestions.length) { const li = document.createElement('li'); li.textContent = '这个口径下能叫的名字它都已经是了。'; ul.appendChild(li); }
+  }
+
+  function showError(msg) {
+    $('error').textContent = '没法判定：' + msg + '。表格里还是上一次能判定的结果。';
+    $('error').style.display = 'block';
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify({ pts: state.pts, focus: state.focus })); } catch (e) { /* 隐私模式忽略 */ } }
+  function load() {
+    try {
+      const o = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (o && Array.isArray(o.pts) && o.pts.length === 8 && o.pts.every(Number.isInteger) && C.COLUMNS.some((c) => c.id === o.focus)) return o;
+    } catch (e) { /* 坏存档：回默认 */ }
+    return null;
+  }
+
+  function run() {
+    document.querySelectorAll('.pt input').forEach((e) => e.classList.remove('bad'));
+    try {
+      const r = C.calculate(inputObj(), { focus: state.focus });
+      last = r;
+      $('error').style.display = 'none';
+      render(r);
+      save();
+    } catch (e) {
+      if (e.field) $(e.field).classList.add('bad');
+      showError(e.message);
+    }
+    drawBoard();
+  }
+
+  function buildStatic() {
+    const pr = $('presets');
+    PRESETS.forEach((p, k) => {
+      const b = document.createElement('button'); b.className = 'ghost'; b.textContent = p[0]; b.dataset.preset = k;
+      b.addEventListener('click', () => { state.pts = p[1].slice(); state.sel = 0; writeInputs(); syncSel(); run(); });
+      pr.appendChild(b);
+    });
+    $('rules').innerHTML = '';
+    C.COLUMNS.forEach((c) => { const d = document.createElement('div'); d.className = 'col'; d.innerHTML = '<b></b><span></span>'; d.children[0].textContent = c.label; d.children[1].textContent = c.rule; $('rules').appendChild(d); });
+    const fs = $('focusSeg');
+    C.COLUMNS.forEach((c) => {
+      const l = document.createElement('label');
+      l.innerHTML = '<input type="radio" name="focus" value="' + c.id + '">' + c.label;
+      l.querySelector('input').addEventListener('change', () => { state.focus = c.id; syncFocus(); run(); });
+      fs.appendChild(l);
+    });
+  }
+  function syncFocus() { document.querySelectorAll('#focusSeg label').forEach((l) => { const i = l.querySelector('input'); i.checked = i.value === state.focus; l.classList.toggle('on', i.checked); }); }
+
+  /* ── 导出 ── */
+  function stamp() { const d = new Date(), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
+  function download(name, blob) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+  function wrap(g, t, w) {
+    const NOHEAD = '，。、；：！？）」』%';
+    const out = []; let line = '';
+    for (const ch of t) {
+      if (g.measureText(line + ch).width > w && line) {
+        if (NOHEAD.indexOf(ch) >= 0) { const last = line.slice(-1); out.push(line.slice(0, -1)); line = last + ch; } else { out.push(line); line = ch; }
+      } else line += ch;
+    }
+    if (line) out.push(line); return out;
+  }
+  function drawPNG(r) {
+    const cv = document.createElement('canvas'); cv.width = 1080; cv.height = 1350;
+    const g = cv.getContext('2d'); const F = '"PingFang SC","Microsoft YaHei",sans-serif';
+    g.fillStyle = '#f3f4f1'; g.fillRect(0, 0, 1080, 1350); g.fillStyle = '#fff'; g.fillRect(50, 50, 980, 1250);
+    g.fillStyle = '#5d6664'; g.font = '32px ' + F; g.fillText('一个图形三种叫法', 100, 125);
+    /* 小图 */
+    const ox = 100, oy = 160, sz = 340, st = sz / 20;
+    g.strokeStyle = '#e4e8e5'; g.lineWidth = 1;
+    for (let k = 0; k <= 20; k++) { g.beginPath(); g.moveTo(ox + k * st, oy); g.lineTo(ox + k * st, oy + sz); g.stroke(); g.beginPath(); g.moveTo(ox, oy + k * st); g.lineTo(ox + sz, oy + k * st); g.stroke(); }
+    const Q = r.pts.map((p) => [ox + (p[0] + 10) * st, oy + (10 - p[1]) * st]);
+    g.beginPath(); Q.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]))); g.closePath();
+    g.fillStyle = 'rgba(45,106,115,.14)'; g.fill(); g.strokeStyle = '#2d6a73'; g.lineWidth = 4; g.stroke();
+    g.fillStyle = '#24292b'; g.font = 'bold 26px ' + F;
+    Q.forEach((q, i) => { g.fillText(L[i], Math.min(ox + sz - 4, Math.max(ox - 4, q[0] + 8)), Math.min(oy + sz + 26, Math.max(oy + 22, q[1] - 8))); });
+    g.font = '26px ' + F; g.fillStyle = '#5d6664';
+    let ty = 200;
+    r.pts.forEach((p, i) => { g.fillText(L[i] + ' (' + p.join(', ') + ')', 480, ty); ty += 40; });
+    ty += 10;
+    C.evidence(r).slice(0, 2).forEach((row) => {
+      g.font = '22px ' + F; g.fillStyle = '#8b9391'; g.fillText(row[0], 480, ty); ty += 34;
+      g.font = '24px ' + F; g.fillStyle = '#24292b';
+      wrap(g, row[1], 520).forEach((l) => { g.fillText(l, 480, ty); ty += 34; }); ty += 8;
+    });
+    let y = 560;
+    g.fillStyle = '#24292b'; g.font = 'bold 34px ' + F;
+    wrap(g, r.summary, 880).slice(0, 4).forEach((l) => { g.fillText(l, 100, y); y += 50; });
+    y += 20;
+    const cx = [100, 470, 650, 830];
+    g.font = '26px ' + F; g.fillStyle = '#5d6664';
+    ['名字'].concat(r.columns.map((c) => c.label)).forEach((t, k) => g.fillText(t, cx[k], y)); y += 16;
+    C.NAMES.concat(['最具体叫法']).forEach((n) => {
+      const isBest = n === '最具体叫法';
+      const diff = r.diffRows.indexOf(n) >= 0;
+      if (diff) { g.fillStyle = '#fff7e6'; g.fillRect(90, y + 2, 900, 52); }
+      g.strokeStyle = isBest ? '#2d6a73' : '#e6eae6'; g.lineWidth = isBest ? 3 : 1; g.beginPath(); g.moveTo(90, y + 2); g.lineTo(990, y + 2); g.stroke();
+      y += 40;
+      g.font = (isBest ? 'bold ' : '') + '28px ' + F; g.fillStyle = isBest ? '#2d6a73' : '#24292b';
+      g.fillText(n + (diff ? ' · 有分歧' : ''), cx[0], y);
+      r.columns.forEach((c, k) => {
+        const t = isBest ? c.best.join('、') : (c.applies[n] ? '是' : '—');
+        g.fillStyle = isBest ? '#2d6a73' : (c.applies[n] ? '#2f6b4f' : '#b6bcba');
+        g.fillText(t, cx[k + 1], y);
+      });
+      y += 14;
+    });
+    g.fillStyle = '#7b8482'; g.font = '22px ' + F;
+    let fy = 1225;
+    wrap(g, '三种口径是本工具整理的定义组合，不代表任何一版教材原文。', 880).forEach((l) => { g.fillText(l, 100, fy); fy += 32; });
+    g.fillText('生成于 ' + stamp(), 100, fy);
+    return cv;
+  }
+
+  function bind() {
+    $('board').addEventListener('click', boardClick);
+    $('dlCSV').addEventListener('click', () => { if (last) download('一个图形三种叫法.csv', new Blob(['\ufeff' + C.toCSV(last, stamp())], { type: 'text/csv;charset=utf-8' })); });
+    $('dlMD').addEventListener('click', () => { if (last) download('一个图形三种叫法.md', new Blob([C.toMD(last, stamp())], { type: 'text/markdown;charset=utf-8' })); });
+    $('dlJSON').addEventListener('click', () => { if (last) download('一个图形三种叫法-备份.json', new Blob([JSON.stringify({ app: '一个图形三种叫法', version: 1, savedAt: stamp(), input: { pts: state.pts, focus: state.focus }, result: { pts: last.pts, columns: last.columns, diffRows: last.diffRows, summary: last.summary, suggestions: last.suggestions.map((s) => ({ target: s.target, text: s.text })) } }, null, 2)], { type: 'application/json' })); });
+    $('dlPNG').addEventListener('click', () => { if (last) drawPNG(last).toBlob((b) => download('一个图形三种叫法-1080x1350.png', b), 'image/png'); });
+  }
+
+  const saved = load();
+  if (saved) { state.pts = saved.pts.slice(); state.focus = saved.focus; }
+  buildPointInputs(); buildStatic(); bind();
+  writeInputs(); syncSel(); syncFocus(); run();
+  window.__three = { last: () => last, state: () => state };
+})();
+
+  </script>
+</body>
+</html>
